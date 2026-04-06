@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: company
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: 1234
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    generate-ddl: true
+    properties:
+      hibernate:
+        format_sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/marca-ai
+          jwk-set-uri: http://localhost:8080/realms/marca-ai/protocol/openid-connect/certs
+
+server:
+  port: 8081
+
+logging:
+  level:
+    org:
+      springframework: DEBUG
