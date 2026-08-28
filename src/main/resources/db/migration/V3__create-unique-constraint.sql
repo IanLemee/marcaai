@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX scheduled_day on APPOINTMENTS(user_id, scheduled);

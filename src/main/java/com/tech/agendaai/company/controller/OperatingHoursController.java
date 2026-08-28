@@ -3,6 +3,7 @@ package com.tech.agendaai.company.controller;
 import com.tech.agendaai.company.model.operatingHours.ChangeOperatingHour;
 import com.tech.agendaai.company.model.operatingHours.CreateOperatingHoursRequest;
 import com.tech.agendaai.company.service.OperatingHoursService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,12 +20,12 @@ public class OperatingHoursController {
 
 
     @PostMapping("/create")
-    public void create(@RequestBody List<CreateOperatingHoursRequest> request) {
+    public void create(@RequestBody @Valid List<CreateOperatingHoursRequest> request) {
         operatingHoursService.create(request);
     }
 
     @PatchMapping("/")
-    public void changeOperatingHour(ChangeOperatingHour date) {
+    public void changeOperatingHour(@RequestBody @Valid ChangeOperatingHour date) {
         operatingHoursService.changeOperatingHour(date);
     }
 }

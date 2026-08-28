@@ -1,7 +1,7 @@
 package com.tech.agendaai.company.service;
 
-import com.tech.agendaai.company.model.operatingHours.*;
 import com.tech.agendaai.company.model.company.CompanyNotFoundException;
+import com.tech.agendaai.company.model.operatingHours.*;
 import com.tech.agendaai.company.repository.OperatingHoursRepository;
 import org.springframework.stereotype.Service;
 
@@ -12,9 +12,16 @@ import java.util.Set;
 
 @Service
 public class OperatingHoursService {
-
     private final OperatingHoursRepository operatingHoursRepository;
     private final CompanyService companyService;
+
+    private static final int MONDAY = 1;
+    private static final int TUESDAY = 2;
+    private static final int WEDNESDAY = 3;
+    private static final int THURSDAY = 4;
+    private static final int FRIDAY = 5;
+    private static final int SATURDAY = 6;
+    private static final int SUNDAY = 7;
 
     public OperatingHoursService(OperatingHoursRepository operatingHoursRepository, CompanyService companyService) {
         this.operatingHoursRepository = operatingHoursRepository;
@@ -25,19 +32,13 @@ public class OperatingHoursService {
         return operatingHoursRepository.findOperatingHoursCompanyAndDay(currentDay.getDayOfWeek().getValue(), companyNickname);
     }
 
-    public Set<Integer> workDays(String nickname) {
-        return operatingHoursRepository.workingDays(nickname);
+    public Set<Integer> workDays(String companyNickname) {
+        return operatingHoursRepository.workingDays(companyNickname);
     }
 
 
     private WeekDay dayOfWeekFor(int day) {
-        final int MONDAY = 1;
-        final int TUESDAY = 2;
-        final int WEDNESDAY = 3;
-        final int THURSDAY = 4;
-        final int FRIDAY = 5;
-        final int SATURDAY = 6;
-        final int SUNDAY = 7;
+
 
         return switch (day) {
             case MONDAY -> WeekDay.MONDAY;
@@ -61,7 +62,8 @@ public class OperatingHoursService {
                         .build()
         ).toList();
 
-        operatingHoursRepository.saveAll(operatingHours);
+        List<OperatingHours> operatingHours1 = operatingHoursRepository.saveAll(operatingHours);
+        System.out.println(operatingHours1);
     }
 
     public void changeOperatingHour(ChangeOperatingHour date) {

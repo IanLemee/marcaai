@@ -1,6 +1,10 @@
 package com.tech.agendaai.company.exception;
 
+import com.tech.agendaai.company.model.appointment.AppointmentAlreadyTakenException;
 import com.tech.agendaai.company.model.company.CompanyNotFoundException;
+import com.tech.agendaai.company.model.operatingHours.OperatingDayDontExistException;
+import com.tech.agendaai.company.model.user.UserAlreadyExistException;
+import com.tech.agendaai.company.model.user.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
@@ -16,6 +20,34 @@ public class ExceptionGlobalHandler {
         HttpStatus notFound = HttpStatus.NOT_FOUND;
         ErrorResponse errorResponse = getErrorResponse(companyNotFoundException, request, notFound);
         return new ResponseEntity<>(errorResponse, notFound);
+    }
+
+    @ExceptionHandler(AppointmentAlreadyTakenException.class)
+    public ResponseEntity<Object> appointmentAlreadyTakenException(AppointmentAlreadyTakenException e, HttpServletRequest request) {
+        HttpStatus conflict = HttpStatus.CONFLICT;
+        ErrorResponse errorResponse = getErrorResponse(e, request, conflict);
+        return new ResponseEntity<>(errorResponse, conflict);
+    }
+
+    @ExceptionHandler(OperatingDayDontExistException.class)
+    public ResponseEntity<Object> operatingDayDontExistException(OperatingDayDontExistException e, HttpServletRequest request) {
+        HttpStatus notFound = HttpStatus.NOT_FOUND;
+        ErrorResponse errorResponse = getErrorResponse(e, request, notFound);
+        return new ResponseEntity<>(errorResponse, notFound);
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Object> employeeNotFound(UserNotFoundException e, HttpServletRequest request) {
+        HttpStatus notFound = HttpStatus.NOT_FOUND;
+        ErrorResponse errorResponse = getErrorResponse(e, request, notFound);
+        return new ResponseEntity<>(errorResponse, notFound);
+    }
+
+    @ExceptionHandler(UserAlreadyExistException.class)
+    public ResponseEntity<Object> userAlreadyExistException(UserAlreadyExistException exception, HttpServletRequest request) {
+        HttpStatus conflict = HttpStatus.CONFLICT;
+        ErrorResponse errorResponse = getErrorResponse(exception, request, conflict);
+        return new ResponseEntity<>(errorResponse, conflict);
     }
 
     @ExceptionHandler(BaseAppException.class)

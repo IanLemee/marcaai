@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
@@ -17,4 +18,5 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     @Query(value = "select o.id, o.company_id, o.close_at, o.open_at, o.day_of_week from company_tb c join operatinghours_tb o on c.id = o.company_id", nativeQuery = true)
     List<OperatingHours> findCompanyByNicknameAndGetOperatingHours(String companyNickname);
 
+    Company findByPublicId(UUID publicId);
 }

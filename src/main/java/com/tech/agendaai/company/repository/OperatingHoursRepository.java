@@ -11,10 +11,10 @@ import java.util.Set;
 
 public interface OperatingHoursRepository extends JpaRepository<OperatingHours, Long> {
 
-    @Query(value = "select op.open, op.close, op.interval_id from company c join operatinghours op on c.id = op.company_id where op.day_of_week = ?1 and c.nickname = ?2", nativeQuery = true)
+    @Query(value = "select op.open, op.close from operating_hours op join public.company c on op.company_id = c.id where op.day_of_week = ?1 and c.nickname = ?2", nativeQuery = true)
     OpenAndClose findOperatingHoursCompanyAndDay(int currentDay, String companyNickname);
 
-    @Query(value = "select op.day_of_week from company c join operatinghours op on c.id = op.company_id where c.nickname = ?1", nativeQuery = true)
+    @Query(value = "select op.day_of_week from operating_hours op join company c on c.id = op.company_id where c.nickname = ?1", nativeQuery = true)
     Set<Integer> workingDays(String companyNickname);
 
     @Modifying

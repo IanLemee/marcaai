@@ -2,6 +2,7 @@ package com.tech.agendaai.company.controller;
 
 import com.tech.agendaai.company.model.services.CreateServicesRequest;
 import com.tech.agendaai.company.service.ServicesService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +21,7 @@ public class ServicesController {
     }
 
     @PostMapping("/create")
-    public void createService(@RequestBody List<CreateServicesRequest> request) {
+    public void createService(@RequestBody @Valid List<CreateServicesRequest> request) {
         servicesService.createService(request);
     }
 }

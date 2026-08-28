@@ -2,3 +2,8 @@ logging:
     level:
       org:
         springframework: DEBUG
+app:
+  abacatepay:
+    url:
+      client: ""
+      product: ""

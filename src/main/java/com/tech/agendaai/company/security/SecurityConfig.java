@@ -2,10 +2,12 @@
 //
 //import org.springframework.context.annotation.Bean;
 //import org.springframework.context.annotation.Configuration;
+//import org.springframework.http.HttpMethod;
 //import org.springframework.security.config.Customizer;
 //import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 //import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 //import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+//import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 //import org.springframework.security.web.SecurityFilterChain;
 //import org.springframework.web.servlet.config.annotation.CorsRegistry;
 //import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -16,11 +18,15 @@
 //
 //    @Bean
 //    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) {
+//        DefaultBearerTokenResolver resolver = new DefaultBearerTokenResolver();
+//        resolver.setAllowUriQueryParameter(true);
 //        return httpSecurity
 //                .csrf(AbstractHttpConfigurer::disable)
 //                .cors(Customizer.withDefaults())
-//                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+//                .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.GET, "create").permitAll()
+//                        .anyRequest().authenticated())
 //                .oauth2ResourceServer(oauth2 -> oauth2
+//                        .bearerTokenResolver(resolver)
 //                        .jwt(Customizer.withDefaults()))
 //                .build();
 //    }

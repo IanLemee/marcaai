@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Table(name = "APPOINTMENTS")
 @Entity
@@ -24,6 +25,9 @@ public class Appointments {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "ID")
     private Long id;
+
+    @Column(name = "PUBLIC_ID", nullable = false)
+    private UUID publicId;
 
     @Column(name = "SCHEDULED", nullable = false)
     private LocalDateTime scheduledTime;

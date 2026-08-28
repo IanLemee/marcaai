@@ -3,16 +3,7 @@ package com.tech.agendaai.company.controller;
 import com.tech.agendaai.company.model.company.RegisterCompanyRequest;
 import com.tech.agendaai.company.service.CompanyService;
 import jakarta.validation.Valid;
-//import org.springframework.security.core.Authentication;
-//import org.springframework.security.core.GrantedAuthority;
-//import org.springframework.security.core.authority.SimpleGrantedAuthority;
-//import org.springframework.security.core.context.SecurityContextHolder;
-//import org.springframework.security.oauth2.core.oidc.OidcIdToken;
-//import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
-//import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
-//import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
-//import org.springframework.security.oauth2.core.user.OAuth2User;
-//import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -40,9 +31,13 @@ public class CompanyController {
 //    }
 
     @GetMapping("/{nickname}")
-    public boolean isNicknameAvaliable(@PathVariable String nickname) {
+    public boolean isNicknameAvailable(@PathVariable String nickname) {
         return false;
     }
 
-
+    @PatchMapping("change/plan/{nickname}")
+    public ResponseEntity<Void> changePlan(@PathVariable String nickname, String plan) {
+        companyService.changePlan(nickname, plan);
+        return null;
+    }
 }

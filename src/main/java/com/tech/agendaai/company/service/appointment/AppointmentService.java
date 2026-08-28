@@ -1,26 +1,35 @@
 package com.tech.agendaai.company.service.appointment;
 
-import com.tech.agendaai.company.model.appointment.AppointmentRequest;
-import com.tech.agendaai.company.model.appointment.AppointmentResponse;
-import com.tech.agendaai.company.model.appointment.Appointments;
-import com.tech.agendaai.company.model.appointment.Status;
+import com.github.f4b6a3.uuid.UuidCreator;
+import com.tech.agendaai.company.model.appointment.*;
+import com.tech.agendaai.company.model.company.Company;
 import com.tech.agendaai.company.model.company.CompanyNotFoundException;
-import com.tech.agendaai.company.model.interval.LunchIntervalResponse;
-import com.tech.agendaai.company.model.operatingHours.OpenAndClose;
+import com.tech.agendaai.company.model.company.Plan;
+import com.tech.agendaai.company.model.customer.Customer;
+import com.tech.agendaai.company.model.operatingHours.OperatingDayDontExistException;
+import com.tech.agendaai.company.model.services.Services;
+import com.tech.agendaai.company.model.user.Employees;
+import com.tech.agendaai.company.model.user.User;
 import com.tech.agendaai.company.repository.AppointmentRepository;
 import com.tech.agendaai.company.service.*;
 import jakarta.transaction.Transactional;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+
 
 @Service
 public class AppointmentService {
@@ -31,10 +40,13 @@ public class AppointmentService {
     private final OperatingHoursService operatingHoursService;
     private final UserService userService;
     private final CustomerService customerService;
-    private final LunchIntervalService intervalService;
+    private final EmployeeIntervalsService intervalService;
 
+    //TODO refactor method allAvailableHours, it's Request DTO and availableDays
 
-    public AppointmentService(AppointmentRepository appointmentRepository, CompanyService companyService, ServicesService servicesService, OperatingHoursService operatingHoursService, UserService userService, CustomerService customerService, LunchIntervalService intervalService) {
+    private final ConcurrentHashMap<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
+
+    public AppointmentService(AppointmentRepository appointmentRepository, CompanyService companyService, ServicesService servicesService, OperatingHoursService operatingHoursService, UserService userService, CustomerService customerService, EmployeeIntervalsService intervalService) {
         this.appointmentRepository = appointmentRepository;
         this.companyService = companyService;
         this.servicesService = servicesService;
@@ -44,146 +56,159 @@ public class AppointmentService {
         this.intervalService = intervalService;
     }
 
-    @CacheEvict(key = "#")
-    public void createAppointment() {
-        DateTimeFormatter pattern = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // TODO whenever a user create an appointment a checkout is also created, SO, I need here to send a request to abacate pay to create the checkout here,
+    // Use public ID as external ID, whenever it's comes back we confirm
+    public AppointmentResponse createAppointment(CreateAppointment appointment, String companyNickname) {
+        Company company = companyService.findByNickname(companyNickname).orElseThrow(CompanyNotFoundException::new);
+        User user = userService.findUserByPublicId(appointment.employeeId()).orElseThrow();
+        Customer customer = customerService.findByPublicId(appointment.customerPhoneN()).orElseThrow();
+        Services service = servicesService.findServiceById(appointment.serviceId()).orElseThrow(RuntimeException::new);
+
         Appointments build = Appointments.builder()
-                .scheduledTime(LocalDateTime.parse("", pattern))
-                .company(companyService.findByNickname("").orElseThrow(CompanyNotFoundException::new))
-                .user(userService.findUserBy("").orElseThrow())
-                .customer(customerService.createCustomer(null))
-                .services(servicesService.findServiceBy("").orElseThrow(RuntimeException::new))
-                .status(Status.CONFIRMED)
+                .scheduledTime(appointment.date())
+                .company(company)
+                .user(user)
+                .customer(customer)
+                .services(service)
+                .status(Status.PENDING)
+                .publicId(UuidCreator.getTimeOrderedEpoch())
                 .build();
-        save(build);
-    }
 
-    @Transactional
-    private Appointments save(Appointments build) {
-        return appointmentRepository.save(build);
-    }
-
-    //TODO
-    // A LOT!
-    public List<LocalDateTime> allAvailableSchedules() {
-        int remainderDays = LocalDate.now().lengthOfMonth() - LocalDate.now().getDayOfMonth();
-        List<LocalDateTime> allAvailableHours = new ArrayList<>();
-        LocalDate currentDay = LocalDate.now();
-        int duration = 50;
-
-        Set<Integer> days = operatingHoursService.workDays("agendaai-barber");
-        while (remainderDays >= 0) {
-
-            while (!days.contains(currentDay.getDayOfWeek().getValue())) {
-                remainderDays--;
-                currentDay = currentDay.plusDays(1);
-            }
-            OpenAndClose operatingHoursAt = operatingHoursService.getOperatingHoursAt(currentDay, "agendaai-barber");
-            LocalTime open = operatingHoursAt.open();
-            LocalTime close = operatingHoursAt.close();
-
-            while (!open.plusMinutes(duration).isAfter(close)) {
-                allAvailableHours.add(
-                        LocalDateTime.of(
-                                currentDay,
-                                open
-                        )
-                );
-
-                open = open.plusMinutes(duration);
-            }
-
-            currentDay = currentDay.plusDays(1);
-            remainderDays--;
+        try {
+            Appointments saved = appointmentRepository.save(build);
+            return new AppointmentResponse(saved.getPublicId().toString(), saved.getUser().getName(), saved.getScheduledTime());
+        } catch (Exception e) {
+            throw new AppointmentAlreadyTakenException();
         }
 
-        List<AppointmentResponse> allAppointmentResponses = appointmentRepository.findAllAppointments("", "");
+    }
 
-        LocalDateTime now = LocalDateTime.now();
-        int j = 0;
-        while (allAvailableHours.get(j).isBefore(now)) {
-            allAvailableHours.remove(j);
-        }
+    @Cacheable(value = "availability", key = "#request.companyNickname + '-' + #request.date")
+    public List<AppointmentDto> allAvailableAppointments(AppointmentRequest request) {
+        String employeeName = (request.name() == null) ? "" : request.name().toLowerCase();
+        String companyNickname = request.companyNickname().toLowerCase();
 
-        List<LocalDateTime> valuesToRemove = new ArrayList<>();
+        Set<Integer> days = operatingHoursService.workDays(companyNickname);
+        if (!days.contains(request.date().getDayOfWeek().getValue())) throw new OperatingDayDontExistException();
 
+        List<AppointmentDto> allAvailableHours = new ArrayList<>();
+        List<AppointmentsAvailable> allAppointments = appointmentRepository.findAllAppointments(companyNickname, employeeName);
 
-        for (AppointmentResponse appointmentResponse : allAppointmentResponses) {
-            for (LocalDateTime dateTime : allAvailableHours) {
-                if (isBetween(appointmentResponse, dateTime, duration)) {
-                    valuesToRemove.add(dateTime);
+        List<Employees> employees = userService.findAllEmployeesAndIntervalsByCompanyNickname(companyNickname);
+        int duration = request.servicesRequest().duration();
+        for (Employees employee : employees) {
+            LocalTime start = employee.start();
+            List<AppointmentsAvailable> list = allAppointments.stream()
+                    .filter(appointments -> appointments.name().equals(employee.name()))
+                    .toList();
+
+            while (!start.plusMinutes(duration).isAfter(employee.finish())) {
+                if (start.isBefore(employee.lunchEnd()) && start.plusMinutes(duration).isAfter(employee.lunchStart())) {
+                    start = employee.lunchEnd();
+                    continue;
                 }
-                if (dateTime.isAfter(appointmentResponse.scheduledTime())) break;
+                LocalTime finalStart = start;
+                boolean hasAnyMatch = list
+                        .stream()
+                        .anyMatch(dateTime -> finalStart.isBefore(dateTime.scheduledTime().toLocalTime().plusMinutes(dateTime.duration())) && finalStart.plusMinutes(duration).isAfter(dateTime.scheduledTime().toLocalTime()));
+
+                if (!hasAnyMatch) {
+                    allAvailableHours.add(new AppointmentDto(employee.name(), LocalDateTime.of(request.date(), finalStart)));
+                }
+
+                start = start.plusMinutes(duration);
             }
         }
 
-        allAvailableHours.removeAll(valuesToRemove);
+        allAvailableHours.removeIf(appointment -> appointment.dateTime().isBefore(LocalDateTime.now(ZoneId.of("America/Sao_Paulo"))));
 
         return allAvailableHours;
     }
 
-    @Cacheable(value = "avaliableAppointments",key = "#request")
-    public void allAvaliableAppointments(AppointmentRequest request) {
-        List<LocalDateTime> allAvailableHours = allAvailableSchedules();
-        Set<Integer> days = operatingHoursService.workDays(request.nickname());
+    @Transactional
+    public void employeeCancelAppointment(String appointmentPublicId) {
+        Appointments appointment = appointmentRepository.findByPublicId(UUID.fromString(appointmentPublicId)).orElseThrow();
 
-        if (!days.contains(request.date().getDayOfWeek().getValue())) throw new IllegalArgumentException();
+        String email = userService.currentUser().getClaimAsString("email");
 
-        List<AppointmentResponse> allAppointments = appointmentRepository.findAllAppointments(request.nickname(), request.name());
-        OpenAndClose operatingHoursAt = operatingHoursService.getOperatingHoursAt(request.date(), request.nickname());
+        if (!(userService.findUserByEmail(email).isPresent() && appointment.getUser().getEmail().equals(email)))
+            throw new RuntimeException();
 
-        LocalTime start = operatingHoursAt.open();
-        LocalTime end = operatingHoursAt.close();
-        LunchIntervalResponse interval = intervalService.getInterval(operatingHoursAt.interval_id());
-        while(!start.equals(end)) {
-            if (!start.isBefore(interval.start()) && !start.isAfter(interval.end())) {
-                start = interval.end();
-            }
-            allAvailableHours.add(
-                    LocalDateTime.of(request.date(), start)
-            );
-            start = start.plusMinutes(request.servicesRequest().duration());
+        appointment.setStatus(Status.CANCELED);
+
+        // value referente to the api twillo compared to the credits
+        int val = 0;
+
+        Company company = appointment.getCompany();
+        if ((company.getPlan().equals(Plan.PRO) && company.getCredits().getDefaultCredits().compareTo(BigDecimal.valueOf(val)) > -1)  || company.getCredits().getBoughtCredits().compareTo(BigDecimal.valueOf(val)) > -1) {
+            CompletableFuture.runAsync(() -> {
+                // Send notification using credits
+            });
         }
 
-        for (LocalDateTime hours : allAvailableHours) {
-            if (!hours.toLocalTime().isBefore(LocalTime.now())) {
-                break;
-            }
-            allAvailableHours.remove(hours);
-        }
-
-//        List<LocalDateTime> valuesToRemove = new ArrayList<>();
-
-        for (AppointmentResponse appointmentResponse : allAppointments) {
-            for (LocalDateTime dateTime : allAvailableHours) {
-                if (isBetween(appointmentResponse, dateTime, request.servicesRequest().duration())) {
-//                    valuesToRemove.add(dateTime);
-                    allAvailableHours.remove(dateTime);
-                }
-                if (dateTime.isAfter(appointmentResponse.scheduledTime())) break;
-            }
-        }
-
-//        allAvailableHours.removeAll(valuesToRemove);
     }
 
-    private static boolean isBetween(AppointmentResponse appointment, LocalDateTime dateTime, int duration) {
-        return (!dateTime.isBefore(appointment.scheduledTime()) && !dateTime.isAfter(appointment.scheduledTime().plusMinutes(appointment.duration())) || (!dateTime.plusMinutes(duration).isBefore(appointment.scheduledTime()) && !dateTime.isAfter(appointment.scheduledTime().plusMinutes(appointment.duration()))));
+    @Transactional
+    public void cancelAppointment(String appointmentPublicId, String customerPublicId) {
+        Appointments appointments = appointmentRepository.cancelAppointment(appointmentPublicId, customerPublicId).orElseThrow();
+        appointments.setStatus(Status.CANCELED);
+
+        String email = appointments.getUser().getEmail();
+
+        if (sseEmitters.containsKey(email)) {
+            try {
+                sseEmitters.get(email).send("cancelado");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public List<LocalDate> daysAvailable(LocalDate localDate,String companyNickname, Long serviceId) {
+        List<LocalDate> days = new ArrayList<>();
+
+        localDate = localDate.plusDays(1);
+
+        for (int i = 0; i < 3; i++) {
+            List<AppointmentDto> appointmentDtos = allAvailableAppointments(new AppointmentRequest(localDate.toString(), companyNickname, "", new ServicesRequest("", serviceId.intValue())));
+            if (!appointmentDtos.isEmpty()) days.add(localDate);
+            localDate = localDate.plusDays(1);
+        }
+
+        return days;
     }
 
     public void deleteAppointments() {
         appointmentRepository.delete();
     }
 
-    public List<AppointmentResponse> allAppointments(String nickname, String name) {
-        return appointmentRepository.findAllAppointments(nickname, name);
+    public List<AppointmentsAvailable> appointmentsForToday(String companyNickname) {
+        String email = userService.currentUser().getClaimAsString("email");
+        User user = userService.findUserByEmail(email).orElseThrow();
+        if (!user.getCompany().getNickname().equals(companyNickname)) {
+            throw new RuntimeException();
+        }
+        return appointmentRepository.findAllAppointments(companyNickname, user.getName());
     }
-
-    public List<Appointments> allAppointments() {
-        return appointmentRepository.findAppointments();
+    public List<Appointments> appointmentsForToday(LocalDateTime startDay, LocalDateTime endDay, Long id) {
+        return appointmentRepository.findAppointments(startDay, endDay, id);
     }
 
     public void saveAll(List<Appointments> appointments) {
         appointmentRepository.saveAll(appointments);
+    }
+
+    public void addEmitter(SseEmitter sseEmitter) {
+        String email = userService.currentUser().getClaimAsString("email");
+        sseEmitters.put(email, sseEmitter);
+        sseEmitter.onCompletion(() -> sseEmitters.remove(email, sseEmitter));
+        sseEmitter.onTimeout(() -> sseEmitters.remove(email, sseEmitter));
+    }
+
+    @Transactional
+    public void changeDate(String uuid, LocalDateTime date) {
+        Appointments appointments = appointmentRepository.findByPublicId(UUID.fromString(uuid)).orElseThrow();
+
+        appointments.setScheduledTime(date);
     }
 }

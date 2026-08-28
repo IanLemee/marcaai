@@ -6,7 +6,7 @@ import java.time.Instant;
 
 @Getter
 public class ErrorResponse {
-    private Instant timestamp;
+    private final Instant timestamp;
     private final String status;
     private final int code;
     private final String message;
